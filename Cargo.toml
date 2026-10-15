@@ -7,9 +7,11 @@ authors = ["Mads Paaskesen"]
 description = "EVM-ify any chain: a generic JSON-RPC client for EVM chains, plus a modular adapter -> normalizer -> transformer pipeline that serves non-EVM chains (Solana, Bitcoin, ...) as EVM blocks, transactions, receipts and logs."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+homepage = "https://github.com/madspaaskesen/evmify"
+documentation = "https://docs.rs/evmify"
 keywords = ["evm", "blockchain", "ethereum", "solana", "bitcoin"]
 categories = ["cryptography::cryptocurrencies", "api-bindings", "network-programming"]
-# repository = "https://github.com/<you>/evmify"
+repository = "https://github.com/madspaaskesen/evmify"
 
 [features]
 default = ["http"]
