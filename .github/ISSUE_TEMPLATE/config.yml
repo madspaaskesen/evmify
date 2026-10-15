@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & ideas
+    url: https://github.com/madspaaskesen/evmify/discussions
+    about: Ask questions, share what you are building, and vote on chain requests.

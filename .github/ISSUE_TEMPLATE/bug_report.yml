@@ -1,0 +1,27 @@
+name: Bug report
+description: Something returns wrong data, errors, or does not compile
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: evmify version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: chain
+    attributes:
+      label: Chain and RPC provider
+      placeholder: "Solana mainnet via api.mainnet-beta.solana.com"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Code / block number / tx id to reproduce
+      render: rust

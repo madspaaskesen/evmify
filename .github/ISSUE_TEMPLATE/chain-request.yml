@@ -1,0 +1,50 @@
+name: Chain adapter request
+description: Ask for a new non-EVM chain to be served in EVM shape
+title: "[chain] <chain name>"
+labels: ["chain-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a chain! Please search existing requests first and 👍 them instead of opening a duplicate; the most-wanted chains get built first.
+  - type: input
+    id: chain
+    attributes:
+      label: Chain
+      description: Name and network(s), e.g. "Sui mainnet + testnet"
+    validations:
+      required: true
+  - type: input
+    id: rpc-docs
+    attributes:
+      label: RPC / API documentation
+      description: Link to the node RPC or API reference
+      placeholder: https://...
+    validations:
+      required: true
+  - type: textarea
+    id: endpoints
+    attributes:
+      label: Public endpoints
+      description: Free or public endpoints that can be used for testing (one per line)
+  - type: textarea
+    id: mapping
+    attributes:
+      label: How does it map to EVM?
+      description: |
+        Anything you know helps: what is a "block" (slot, checkpoint, round...), how are accounts and tx ids formatted, how are tokens and transfers represented, how is the fee paid?
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Your use case
+      description: What would you build with it? (indexer, wallet, analytics, bridge, ...)
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Can you help?
+      options:
+        - Just requesting
+        - I can provide sample responses / test data
+        - I'd like to write the adapter myself (see CONTRIBUTING.md)
+    validations:
+      required: true

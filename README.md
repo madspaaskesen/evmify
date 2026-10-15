@@ -79,6 +79,10 @@ Details worth knowing:
 
 Build with `default-features = false` to bring your own HTTP stack.
 
+## Request a chain
+
+Missing a chain? [Open a chain request](https://github.com/madspaaskesen/evmify/issues/new?template=chain-request.yml), or 👍 an [existing one](https://github.com/madspaaskesen/evmify/issues?q=is%3Aissue+label%3Achain-request). The most-wanted chains are built first. Questions and ideas go in [Discussions](https://github.com/madspaaskesen/evmify/discussions).
+
 ## Adding a chain
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). In short: raw serde structs, an `Adapter` that fetches them, a `Normalizer` that maps them, a `pipeline()` helper, and fixture tests. The EVM output comes for free.
