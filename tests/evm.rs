@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use omnirpc::{
+use evmify::{
     Address, B256, BlockId, BlockTransactions, ChainProvider, Error, EvmClient, FallbackTransport,
     Filter, MockTransport, Transport, U256,
 };
@@ -89,7 +89,7 @@ async fn receipt_and_logs() {
     let mock = MockTransport::new()
         .on("eth_getTransactionReceipt", receipt.clone())
         .on("eth_getLogs", json!([receipt["logs"][0]]));
-    let client = EvmClient::new(mock.clone(), omnirpc::chains::by_id(8453).unwrap());
+    let client = EvmClient::new(mock.clone(), evmify::chains::by_id(8453).unwrap());
 
     let r = client
         .get_transaction_receipt(TX.parse().unwrap())
@@ -125,10 +125,10 @@ async fn receipt_and_logs() {
 #[tokio::test]
 async fn rpc_errors_are_structured() {
     let mock = MockTransport::new().on_error("eth_call", 3, "execution reverted");
-    let client = EvmClient::new(mock, omnirpc::ChainInfo::evm_unknown(1337));
+    let client = EvmClient::new(mock, evmify::ChainInfo::evm_unknown(1337));
     let err = client
         .call(
-            &omnirpc::CallRequest::new(Address::ZERO, vec![0u8; 4]),
+            &evmify::CallRequest::new(Address::ZERO, vec![0u8; 4]),
             BlockId::Latest,
         )
         .await
@@ -146,13 +146,13 @@ async fn fallback_moves_on_only_for_transport_errors() {
         Arc::new(dead.clone()) as Arc<dyn Transport>,
         Arc::new(alive.clone()),
     ]);
-    let client = EvmClient::new(fallback, omnirpc::chains::by_id(1).unwrap());
+    let client = EvmClient::new(fallback, evmify::chains::by_id(1).unwrap());
     assert_eq!(ChainProvider::block_number(&client).await.unwrap(), 16);
 
     // RPC error from the live node is returned, not retried elsewhere.
     let err = client
         .call(
-            &omnirpc::CallRequest::new(Address::ZERO, vec![]),
+            &evmify::CallRequest::new(Address::ZERO, vec![]),
             BlockId::Latest,
         )
         .await
@@ -165,7 +165,7 @@ async fn fallback_moves_on_only_for_transport_errors() {
 #[tokio::test]
 async fn missing_block_is_none() {
     let mock = MockTransport::new().on("eth_getBlockByHash", json!(null));
-    let client = EvmClient::new(mock, omnirpc::chains::by_id(1).unwrap());
+    let client = EvmClient::new(mock, evmify::chains::by_id(1).unwrap());
     assert!(
         client
             .get_block_by_hash(B256::ZERO, true)

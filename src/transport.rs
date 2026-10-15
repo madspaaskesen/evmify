@@ -217,7 +217,7 @@ impl Transport for FallbackTransport {
 /// In-memory transport for tests: canned responses per method, plus a call log.
 ///
 /// ```
-/// use omnirpc::transport::MockTransport;
+/// use evmify::transport::MockTransport;
 /// use serde_json::json;
 ///
 /// let mock = MockTransport::new().on("eth_chainId", json!("0x1"));

@@ -1,13 +1,13 @@
-# omnirpc
+# evmify
 
-One read API for EVM **and** non-EVM chains, always answered in EVM JSON-RPC shape.
+**EVM-ify any chain.** One read API for EVM **and** non-EVM chains, always answered in EVM JSON-RPC shape: query Solana or Bitcoin and get back the same blocks, transactions, receipts and logs your Ethereum code already understands.
 
 - **`EvmClient`** — a typed `eth_*` client that works against any EVM chain (Ethereum, OP-stack, Arbitrum, Polygon, BNB, Avalanche, zkSync, …). Fields the crate does not model (`l1BlockNumber`, deposit fields, …) are kept in `other`, never dropped.
 - **A modular pipeline** — `Adapter → Normalizer → Transformer` — that serves non-EVM chains as EVM blocks, transactions, receipts and logs. Solana and Bitcoin ship as reference adapters.
 - **`ChainProvider`** — the trait both implement, so `Vec<Box<dyn ChainProvider>>` can hold Ethereum, Base, Solana and Bitcoin side by side.
 
 ```rust
-use omnirpc::{BlockId, ChainProvider, EvmClient, HttpTransport, adapters::solana};
+use evmify::{BlockId, ChainProvider, EvmClient, HttpTransport, adapters::solana};
 
 let chains: Vec<Box<dyn ChainProvider>> = vec![
     Box::new(EvmClient::connect("https://ethereum-rpc.publicnode.com").await?),

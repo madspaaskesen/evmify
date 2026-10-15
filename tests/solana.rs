@@ -1,6 +1,6 @@
-use omnirpc::adapters::solana::{self, SolanaAdapter};
-use omnirpc::pipeline::{IdMapper, NATIVE_TOKEN_ADDRESS};
-use omnirpc::{
+use evmify::adapters::solana::{self, SolanaAdapter};
+use evmify::pipeline::{IdMapper, NATIVE_TOKEN_ADDRESS};
+use evmify::{
     B256, BlockId, BlockTransactions, ChainProvider, Filter, MockTransport, U256,
     primitives::keccak256,
 };
@@ -89,8 +89,8 @@ fn block() -> Value {
     })
 }
 
-fn mapper_addr(s: &str) -> omnirpc::Address {
-    omnirpc::pipeline::DefaultMapper::default().address(s)
+fn mapper_addr(s: &str) -> evmify::Address {
+    evmify::pipeline::DefaultMapper::default().address(s)
 }
 
 #[tokio::test]

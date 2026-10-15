@@ -8,11 +8,11 @@
 
 use std::sync::Arc;
 
-use omnirpc::adapters::{bitcoin, solana};
-use omnirpc::{BlockId, ChainProvider, EvmClient, FallbackTransport, HttpTransport, Transport};
+use evmify::adapters::{bitcoin, solana};
+use evmify::{BlockId, ChainProvider, EvmClient, FallbackTransport, HttpTransport, Transport};
 
 #[tokio::main]
-async fn main() -> omnirpc::Result<()> {
+async fn main() -> evmify::Result<()> {
     let mut chains: Vec<Box<dyn ChainProvider>> = Vec::new();
 
     // Any EVM chain: just a URL. The chain is identified via eth_chainId.
@@ -66,7 +66,7 @@ async fn main() -> omnirpc::Result<()> {
                     block.transactions.len(),
                     block.hash
                 );
-                if let omnirpc::BlockTransactions::Full(txs) = &block.transactions
+                if let evmify::BlockTransactions::Full(txs) = &block.transactions
                     && let Some(tx) = txs.first()
                 {
                     println!("{:<12} first tx as EVM JSON:", "");

@@ -1,7 +1,7 @@
 //! EVM and non-EVM chains behind one trait object.
 
-use omnirpc::adapters::{bitcoin, solana};
-use omnirpc::{BlockId, ChainKind, ChainProvider, EvmClient, MockTransport};
+use evmify::adapters::{bitcoin, solana};
+use evmify::{BlockId, ChainKind, ChainProvider, EvmClient, MockTransport};
 use serde_json::json;
 
 #[tokio::test]
@@ -13,7 +13,7 @@ async fn heterogeneous_chains_share_one_interface() {
     let chains: Vec<Box<dyn ChainProvider>> = vec![
         Box::new(EvmClient::new(
             eth,
-            omnirpc::chains::by_key("ethereum").unwrap(),
+            evmify::chains::by_key("ethereum").unwrap(),
         )),
         Box::new(solana::pipeline(solana::SolanaAdapter::mainnet(sol))),
         Box::new(bitcoin::pipeline(bitcoin::BitcoinAdapter::mainnet(btc))),

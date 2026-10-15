@@ -1,6 +1,6 @@
-//! # omnirpc
+//! # evmify
 //!
-//! One read API for EVM and non-EVM chains, always answered in EVM JSON-RPC shape.
+//! **EVM-ify any chain.** One read API for EVM and non-EVM chains, always answered in EVM JSON-RPC shape.
 //!
 //! * [`EvmClient`] — typed `eth_*` client that works on any EVM chain (Ethereum, L2s,
 //!   sidechains). Unknown response fields are preserved, never dropped.
@@ -11,8 +11,8 @@
 //!
 //! ```no_run
 //! # #[cfg(feature = "http")]
-//! # async fn demo() -> omnirpc::Result<()> {
-//! use omnirpc::{BlockId, ChainProvider, EvmClient, HttpTransport, adapters::solana};
+//! # async fn demo() -> evmify::Result<()> {
+//! use evmify::{BlockId, ChainProvider, EvmClient, HttpTransport, adapters::solana};
 //!
 //! let chains: Vec<Box<dyn ChainProvider>> = vec![
 //!     Box::new(EvmClient::connect("https://eth.llamarpc.com").await?),

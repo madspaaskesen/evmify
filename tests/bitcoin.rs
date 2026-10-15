@@ -1,6 +1,6 @@
-use omnirpc::adapters::bitcoin::{self, BitcoinAdapter, btc_to_sats};
-use omnirpc::pipeline::{IdMapper, NATIVE_TOKEN_ADDRESS, ValueScale};
-use omnirpc::{
+use evmify::adapters::bitcoin::{self, BitcoinAdapter, btc_to_sats};
+use evmify::pipeline::{IdMapper, NATIVE_TOKEN_ADDRESS, ValueScale};
+use evmify::{
     Address, B256, BlockId, BlockTransactions, ChainProvider, EvmTransformer, MockTransport, U256,
 };
 use serde_json::{Value, json};
@@ -74,7 +74,7 @@ async fn block_in_evm_shape() {
     assert_eq!(b.parent_hash, PREV_HASH.parse::<B256>().unwrap());
     assert_eq!(
         b.miner,
-        omnirpc::pipeline::DefaultMapper::default().address(MINER)
+        evmify::pipeline::DefaultMapper::default().address(MINER)
     );
 
     let BlockTransactions::Full(txs) = &b.transactions else {
@@ -137,7 +137,7 @@ async fn native_units_when_asked() {
         .on("getblockhash", json!(BLOCK_HASH))
         .on("getblock", block());
     let btc = bitcoin::pipeline(BitcoinAdapter::mainnet(mock)).with_transformer(
-        EvmTransformer::new(omnirpc::pipeline::DefaultMapper::new(true))
+        EvmTransformer::new(evmify::pipeline::DefaultMapper::new(true))
             .with_scale(ValueScale::Native),
     );
     let b = btc

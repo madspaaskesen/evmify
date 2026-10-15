@@ -1,15 +1,15 @@
 [package]
-name = "omnirpc"
+name = "evmify"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
 authors = ["Mads Paaskesen"]
-description = "Generic JSON-RPC client for EVM chains, plus a modular adapter -> normalizer -> transformer pipeline that serves non-EVM chains (Solana, Bitcoin, ...) in EVM output format."
+description = "EVM-ify any chain: a generic JSON-RPC client for EVM chains, plus a modular adapter -> normalizer -> transformer pipeline that serves non-EVM chains (Solana, Bitcoin, ...) as EVM blocks, transactions, receipts and logs."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-keywords = ["evm", "rpc", "ethereum", "solana", "bitcoin"]
+keywords = ["evm", "blockchain", "ethereum", "solana", "bitcoin"]
 categories = ["cryptography::cryptocurrencies", "api-bindings", "network-programming"]
-# repository = "https://github.com/<you>/omnirpc"
+# repository = "https://github.com/<you>/evmify"
 
 [features]
 default = ["http"]
