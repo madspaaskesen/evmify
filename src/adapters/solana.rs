@@ -474,3 +474,32 @@ pub fn pipeline<T: Transport>(adapter: SolanaAdapter<T>) -> SolanaPipeline<T> {
         EvmTransformer::new(IndexedMapper::new(DefaultMapper::new(false), 100_000)),
     )
 }
+
+/// The ready-made pipeline over HTTP, from a URL or a key: `"solana"` (mainnet) or
+/// `"solana-devnet"`. Keys honour `EVMIFY_RPC_SOLANA` / `EVMIFY_RPC_SOLANA_DEVNET`.
+///
+/// ```no_run
+/// # async fn demo() -> evmify::Result<()> {
+/// use evmify::{BlockId, ChainProvider, adapters::solana};
+/// let sol = solana::connect("solana")?;
+/// let block = sol.block(BlockId::Latest, false).await?;
+/// # Ok(()) }
+/// ```
+#[cfg(feature = "http")]
+pub fn connect(url_or_key: &str) -> Result<SolanaPipeline<crate::transport::HttpTransport>> {
+    let rpc = crate::chains::resolve_rpc(url_or_key)?;
+    let chain = match rpc.chain {
+        Some(c) if c.kind == crate::chains::ChainKind::Solana => c.info(),
+        Some(c) => {
+            return Err(Error::Unsupported(format!(
+                "`{}` is not a Solana network",
+                c.key
+            )));
+        }
+        None => ChainInfo::solana_mainnet(),
+    };
+    Ok(pipeline(SolanaAdapter::new(
+        crate::transport::HttpTransport::new(rpc.url),
+        chain,
+    )))
+}

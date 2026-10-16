@@ -174,3 +174,112 @@ async fn missing_block_is_none() {
             .is_none()
     );
 }
+
+#[test]
+fn rpc_error_message_includes_data() {
+    // Ronin's actual answer to a 501-block eth_getLogs.
+    let err = evmify::transport::JsonRpcResponse {
+        result: None,
+        error: Some(evmify::transport::JsonRpcError {
+            code: -32602,
+            message: "Invalid params".into(),
+            data: Some(json!(
+                "requested block range 501 exceeds the limit of 200; narrow your fromBlock/toBlock"
+            )),
+        }),
+    }
+    .into_result()
+    .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "rpc error -32602: Invalid params (requested block range 501 exceeds the limit of 200; narrow your fromBlock/toBlock)"
+    );
+}
+
+#[tokio::test]
+async fn get_logs_chunked_splits_and_halves_on_range_errors() {
+    let log = json!({
+        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],
+        "data": "0x",
+        "blockNumber": "0x1",
+        "logIndex": "0x0"
+    });
+    // First window is rejected as too large, every later call succeeds.
+    let mock = MockTransport::new()
+        .on_error("eth_getLogs", -32602, "Invalid params")
+        .on("eth_getLogs", json!([log]));
+    let client = EvmClient::new(mock.clone(), evmify::chains::by_id(2020).unwrap());
+
+    let filter = Filter::new().event("Transfer(address,address,uint256)");
+    let logs = client
+        .get_logs_chunked(&filter, 100, 349, 200)
+        .await
+        .unwrap();
+
+    let ranges: Vec<(String, String)> = mock
+        .calls()
+        .iter()
+        .map(|(_, p)| {
+            (
+                p[0]["fromBlock"].as_str().unwrap().to_string(),
+                p[0]["toBlock"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect();
+    let hex = |n: u64| format!("{n:#x}");
+    assert_eq!(
+        ranges,
+        vec![
+            (hex(100), hex(299)), // 200 blocks: rejected
+            (hex(100), hex(199)), // halved to 100
+            (hex(200), hex(299)),
+            (hex(300), hex(349)), // last, shorter window
+        ]
+    );
+    assert_eq!(logs.len(), 3);
+    assert_eq!(client.chain_info().name, "Ronin");
+}
+
+#[tokio::test]
+async fn get_logs_chunked_gives_up_on_other_errors() {
+    let mock = MockTransport::new().on_error("eth_getLogs", -32601, "method not found");
+    let client = EvmClient::new(mock.clone(), evmify::chains::by_id(1).unwrap());
+    let err = client
+        .get_logs_chunked(&Filter::new(), 0, 1000, 100)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Rpc { code: -32601, .. }));
+    assert_eq!(mock.calls().len(), 1);
+}
+
+#[tokio::test]
+async fn detect_expecting_catches_the_wrong_chain() {
+    // e.g. EVMIFY_RPC_RONIN accidentally pointing at an Ethereum node
+    let mock = MockTransport::new().on("eth_chainId", json!("0x1"));
+    let err = EvmClient::detect_expecting(mock, 2020).await.unwrap_err();
+    assert!(matches!(
+        err,
+        Error::ChainMismatch {
+            expected: 2020,
+            actual: 1
+        }
+    ));
+    assert!(err.to_string().contains("expected chain id 2020"));
+
+    let ok = MockTransport::new().on("eth_chainId", json!("0x7e4"));
+    let client = EvmClient::detect_expecting(ok, 2020).await.unwrap();
+    assert_eq!(client.chain_info().key, "ronin");
+}
+
+#[cfg(feature = "http")]
+#[tokio::test]
+async fn non_evm_keys_are_refused_by_evm_client() {
+    let err = EvmClient::connect("solana").await.unwrap_err().to_string();
+    assert!(err.contains("not an EVM chain"), "{err}");
+    let err = EvmClient::connect("no-such-chain")
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("unknown chain"), "{err}");
+}

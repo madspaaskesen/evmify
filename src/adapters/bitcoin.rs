@@ -328,3 +328,70 @@ pub fn pipeline<T: Transport>(adapter: BitcoinAdapter<T>) -> BitcoinPipeline<T> 
         EvmTransformer::new(DefaultMapper::new(true)),
     )
 }
+
+/// The ready-made pipeline over HTTP, from a URL or a key (`"bitcoin"`,
+/// `"bitcoin-testnet"`). There is no public Bitcoin JSON-RPC, so a key needs
+/// `EVMIFY_RPC_BITCOIN` (or `_TESTNET`) pointing at your node. Credentials may be
+/// embedded: `http://user:password@127.0.0.1:8332`.
+#[cfg(feature = "http")]
+pub fn connect(url_or_key: &str) -> Result<BitcoinPipeline<crate::transport::HttpTransport>> {
+    let rpc = crate::chains::resolve_rpc(url_or_key)?;
+    let chain = match rpc.chain {
+        Some(c) if c.kind == crate::chains::ChainKind::Bitcoin => c.info(),
+        Some(c) => {
+            return Err(Error::Unsupported(format!(
+                "`{}` is not a Bitcoin network",
+                c.key
+            )));
+        }
+        None => ChainInfo::bitcoin_mainnet(),
+    };
+    let (url, credentials) = split_credentials(&rpc.url);
+    let mut transport = crate::transport::HttpTransport::new(url);
+    if let Some((user, password)) = credentials {
+        transport = transport.basic_auth(user, password);
+    }
+    Ok(pipeline(BitcoinAdapter::new(transport, chain)))
+}
+
+/// `http://user:pw@host/` -> (`http://host/`, Some(("user", Some("pw")))).
+#[cfg(feature = "http")]
+fn split_credentials(url: &str) -> (String, Option<(String, Option<String>)>) {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return (url.to_string(), None);
+    };
+    let authority_end = rest.find('/').unwrap_or(rest.len());
+    match rest[..authority_end].rsplit_once('@') {
+        Some((userinfo, host)) => {
+            let (user, password) = match userinfo.split_once(':') {
+                Some((u, p)) => (u.to_string(), Some(p.to_string())),
+                None => (userinfo.to_string(), None),
+            };
+            (
+                format!("{scheme}://{host}{}", &rest[authority_end..]),
+                Some((user, password)),
+            )
+        }
+        None => (url.to_string(), None),
+    }
+}
+
+#[cfg(all(test, feature = "http"))]
+mod tests {
+    use super::split_credentials;
+
+    #[test]
+    fn credentials_are_split_from_the_url() {
+        assert_eq!(
+            split_credentials("http://alice:s3cret@127.0.0.1:8332/wallet/x"),
+            (
+                "http://127.0.0.1:8332/wallet/x".to_string(),
+                Some(("alice".to_string(), Some("s3cret".to_string())))
+            )
+        );
+        assert_eq!(
+            split_credentials("https://node.example"),
+            ("https://node.example".to_string(), None)
+        );
+    }
+}

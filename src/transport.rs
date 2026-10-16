@@ -79,8 +79,9 @@ pub use http::HttpTransport;
 
 #[cfg(feature = "http")]
 mod http {
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use super::*;
 
@@ -91,7 +92,13 @@ mod http {
         url: String,
         auth: Option<Auth>,
         next_id: AtomicU64,
+        max_retries: u32,
+        min_interval: Option<Duration>,
+        next_slot: Mutex<Option<Instant>>,
     }
+
+    /// Longest pause between retries, whatever `Retry-After` asks for.
+    const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
     #[derive(Debug, Clone)]
     enum Auth {
@@ -115,6 +122,9 @@ mod http {
                 url: url.into(),
                 auth: None,
                 next_id: AtomicU64::new(1),
+                max_retries: 3,
+                min_interval: None,
+                next_slot: Mutex::new(None),
             }
         }
 
@@ -130,8 +140,51 @@ mod http {
             self
         }
 
+        /// How often to retry when the server says it is overloaded (HTTP 429 or 503).
+        /// Each retry waits for the server's `Retry-After`, or else 0.5 s, 1 s, 2 s, …
+        /// (capped at 30 s). Default 3; `0` disables retries.
+        pub fn max_retries(mut self, retries: u32) -> Self {
+            self.max_retries = retries;
+            self
+        }
+
+        /// Send at most `requests_per_second` requests, spaced evenly, across every call
+        /// made through this transport (also concurrent ones). Keeps a client under a
+        /// provider's limit instead of running into HTTP 429. `0` disables it (default).
+        pub fn max_rps(mut self, requests_per_second: f64) -> Self {
+            self.min_interval = (requests_per_second > 0.0)
+                .then(|| Duration::from_secs_f64(1.0 / requests_per_second));
+            self
+        }
+
         pub fn url(&self) -> &str {
             &self.url
+        }
+
+        /// Reserve the next send slot and wait for it.
+        async fn pace(&self) {
+            let Some(interval) = self.min_interval else {
+                return;
+            };
+            let wait = {
+                let mut slot = self.next_slot.lock().unwrap();
+                let now = Instant::now();
+                let start = slot.map_or(now, |s| s.max(now));
+                *slot = Some(start + interval);
+                start.saturating_duration_since(now)
+            };
+            if !wait.is_zero() {
+                tokio::time::sleep(wait).await;
+            }
+        }
+
+        fn backoff(attempt: u32, retry_after: Option<&reqwest::header::HeaderValue>) -> Duration {
+            retry_after
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.trim().parse::<u64>().ok())
+                .map(Duration::from_secs)
+                .unwrap_or_else(|| Duration::from_millis(500) * 2u32.saturating_pow(attempt))
+                .min(MAX_BACKOFF)
         }
     }
 
@@ -144,16 +197,27 @@ mod http {
                 method,
                 params,
             };
-            let mut req = self.client.post(&self.url).json(&body);
-            match &self.auth {
-                Some(Auth::Bearer(token)) => req = req.bearer_auth(token),
-                Some(Auth::Basic(user, pass)) => req = req.basic_auth(user, pass.as_ref()),
-                None => {}
-            }
-            let resp = req
-                .send()
-                .await
-                .map_err(|e| Error::Transport(format!("{}: {e}", self.url)))?;
+            let mut attempt = 0;
+            let resp = loop {
+                self.pace().await;
+                let mut req = self.client.post(&self.url).json(&body);
+                match &self.auth {
+                    Some(Auth::Bearer(token)) => req = req.bearer_auth(token),
+                    Some(Auth::Basic(user, pass)) => req = req.basic_auth(user, pass.as_ref()),
+                    None => {}
+                }
+                let resp = req
+                    .send()
+                    .await
+                    .map_err(|e| Error::Transport(format!("{}: {e}", self.url)))?;
+                let overloaded = matches!(resp.status().as_u16(), 429 | 503);
+                if !overloaded || attempt >= self.max_retries {
+                    break resp;
+                }
+                let wait = Self::backoff(attempt, resp.headers().get(reqwest::header::RETRY_AFTER));
+                tokio::time::sleep(wait).await;
+                attempt += 1;
+            };
             let status = resp.status();
             let text = resp
                 .text()
@@ -228,12 +292,25 @@ pub struct MockTransport {
 }
 
 type MockResponse = Result<Value, (i64, String)>;
+type MockHandler = Arc<dyn Fn(&Value) -> Value + Send + Sync>;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct MockState {
     /// Responses for a method; the last one repeats once the queue is down to one.
     responses: HashMap<String, VecDeque<MockResponse>>,
+    /// Computed responses, checked before `responses`.
+    handlers: HashMap<String, MockHandler>,
     calls: Vec<(String, Value)>,
+}
+
+impl Debug for MockState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MockState")
+            .field("responses", &self.responses)
+            .field("handlers", &self.handlers.keys().collect::<Vec<_>>())
+            .field("calls", &self.calls)
+            .finish()
+    }
 }
 
 impl MockTransport {
@@ -250,6 +327,17 @@ impl MockTransport {
     /// Queue a JSON-RPC error for `method`.
     pub fn on_error(self, method: &str, code: i64, message: &str) -> Self {
         self.push(method, Err((code, message.to_string())));
+        self
+    }
+
+    /// Answer `method` by computing the result from its params, e.g. return block `n` for
+    /// `eth_getBlockByNumber(n)`. Takes precedence over queued responses.
+    pub fn on_fn(self, method: &str, f: impl Fn(&Value) -> Value + Send + Sync + 'static) -> Self {
+        self.inner
+            .lock()
+            .unwrap()
+            .handlers
+            .insert(method.to_string(), Arc::new(f));
         self
     }
 
@@ -273,6 +361,11 @@ impl MockTransport {
 impl Transport for MockTransport {
     async fn request(&self, method: &str, params: Value) -> Result<Value> {
         let mut state = self.inner.lock().unwrap();
+        if let Some(handler) = state.handlers.get(method).cloned() {
+            let result = handler(&params);
+            state.calls.push((method.to_string(), params));
+            return Ok(result);
+        }
         state.calls.push((method.to_string(), params));
         let queue = state
             .responses

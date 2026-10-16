@@ -52,7 +52,7 @@ impl From<u64> for BlockId {
 /// Where a value came from when it was translated from a non-EVM chain.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NativeMeta {
-    /// Chain key, e.g. `"solana-mainnet"`.
+    /// Chain key, e.g. `"solana"`.
     pub chain: String,
     /// The original identifier (Solana signature / slot hash, Bitcoin txid, ...).
     pub id: String,
