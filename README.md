@@ -85,7 +85,9 @@ Missing a chain? [Open a chain request](https://github.com/madspaaskesen/evmify/
 
 ## Adding a chain
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). In short: raw serde structs, an `Adapter` that fetches them, a `Normalizer` that maps them, a `pipeline()` helper, and fixture tests. The EVM output comes for free.
+**EVM chains** already work with `EvmClient`, with no code needed. To show a proper name instead of `EVM chain <id>`, add one line with the chain's [EIP-155 chain ID](https://chainlist.org) to `KNOWN_EVM_CHAINS` in `src/chains.rs`; see [CONTRIBUTING.md](CONTRIBUTING.md#adding-an-evm-chain).
+
+**Non-EVM chains** need an adapter; see [CONTRIBUTING.md](CONTRIBUTING.md). In short: raw serde structs, an `Adapter` that fetches them, a `Normalizer` that maps them, a `pipeline()` helper, and fixture tests. The EVM output comes for free.
 
 ## Scope
 

@@ -90,6 +90,8 @@ pub const KNOWN_EVM_CHAINS: &[(u64, &str, &str, &str)] = &[
     (100, "gnosis", "Gnosis", "xDAI"),
     (137, "polygon", "Polygon PoS", "POL"),
     (324, "zksync", "zkSync Era", "ETH"),
+    (2020, "ronin", "Ronin", "RON"),
+    (2021, "ronin-saigon", "Ronin Saigon", "RON"), // testnet
     (5000, "mantle", "Mantle", "MNT"),
     (8453, "base", "Base", "ETH"),
     (42161, "arbitrum", "Arbitrum One", "ETH"),

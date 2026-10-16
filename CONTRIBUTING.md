@@ -30,4 +30,13 @@ Then add `ChainInfo::<chain>_mainnet()` in `src/chains.rs`, register the module 
 
 ## Adding an EVM chain
 
-Nothing to do: `EvmClient` works with any EVM endpoint. To give it a name and symbol, add a line to `KNOWN_EVM_CHAINS` in `src/chains.rs`.
+Nothing to do: `EvmClient` works with any EVM endpoint. To give it a name and symbol, add a line to `KNOWN_EVM_CHAINS` in `src/chains.rs`:
+
+```rust
+// (chain id, key, display name, native symbol)
+(2020, "ronin", "Ronin", "RON"),
+```
+
+The number is the chain's **EIP-155 chain ID**: a global identifier, not something local to this crate. It is the value the node returns for `eth_chainId`, which is how `EvmClient::connect` recognizes the chain. Look it up on [chainlist.org](https://chainlist.org) (backed by [ethereum-lists/chains](https://github.com/ethereum-lists/chains)), and double-check it against the chain's own docs or by calling `eth_chainId` on its official RPC. Use a short lowercase `key` (`-testnet` / `-sepolia` suffix for test networks) and the native coin's symbol.
+
+Chains missing from the list still work; they are just named `EVM chain <id>`.

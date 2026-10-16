@@ -145,7 +145,7 @@ async fn block_in_evm_shape() {
 
     // Request asks for v0 transactions.
     let (_, params) = &mock.calls()[0];
-    assert_eq!(params[1]["maxSupportedTransactionVersion"], json!(0));
+    assert_eq!(params[1]["maxSupportedTransactionVersion"], json!(1));
 }
 
 #[tokio::test]
@@ -273,4 +273,62 @@ async fn hash_lookup_after_block_fetch_and_log_scan() {
     // Ranges are capped.
     let too_wide = Filter::new().from_block(0).to_block(1_000);
     assert!(sol.logs(&too_wide).await.is_err());
+}
+
+/// v1 transaction: no lookup tables, compute budget in `transactionConfig`
+/// instead of ComputeBudget instructions.
+fn tx_v1_sol_transfer() -> Value {
+    json!({
+        "version": 1,
+        "transaction": {
+            "signatures": [SIG_SOL],
+            "message": {
+                "accountKeys": [PAYER, BOB, SYSTEM],
+                "instructions": [{ "programIdIndex": 2, "accounts": [0, 1], "data": "3Bxs4h24hBtQy9rw", "stackHeight": null }],
+                "transactionConfig": {
+                    "computeUnitLimit": 450,
+                    "heapSize": null,
+                    "loadedAccountsDataSizeLimit": 149,
+                    "priorityFee": 5000
+                }
+            }
+        },
+        "meta": {
+            "err": null,
+            "fee": 10000,
+            "preBalances": [10_000_000_000u64, 0, 1],
+            "postBalances": [8_999_990_000u64, 1_000_000_000u64, 1],
+            "computeUnitsConsumed": 150
+        }
+    })
+}
+
+#[tokio::test]
+async fn v1_transactions_in_a_block() {
+    let mut b = block();
+    b["transactions"] = json!([tx_v1_sol_transfer(), tx_usdc_transfer()]);
+    let mock = MockTransport::new().on("getBlock", b);
+    let sol = solana::pipeline(SolanaAdapter::mainnet(mock));
+
+    let blk = sol
+        .block(BlockId::Number(300_000_000), true)
+        .await
+        .unwrap()
+        .unwrap();
+    let BlockTransactions::Full(txs) = &blk.transactions else {
+        panic!("expected full txs")
+    };
+    let t = &txs[0];
+    assert_eq!(t.to, Some(mapper_addr(BOB)));
+    assert_eq!(t.value, U256::from(10u64).pow(U256::from(18)));
+    // fee 10_000 lamports (base + 5_000 priority) -> gasUsed * gasPrice
+    assert_eq!(
+        t.gas * t.gas_price.unwrap(),
+        U256::from(10_000u64) * U256::from(1_000_000_000u64)
+    );
+    let extra = &t.native.as_ref().unwrap().extra;
+    assert_eq!(extra["version"], json!(1));
+    assert_eq!(extra["transactionConfig"]["priorityFee"], json!(5000));
+    // v0 tx in the same block still resolves its lookup-table keys
+    assert_eq!(txs[1].native.as_ref().unwrap().extra["version"], json!(0));
 }
