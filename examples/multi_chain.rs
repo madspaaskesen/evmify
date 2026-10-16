@@ -2,8 +2,8 @@
 //!
 //! ```sh
 //! cargo run --example multi_chain
-//! # optional: a Bitcoin Core node (getblock verbosity 3 needs Core 25+)
-//! BTC_RPC_URL=http://127.0.0.1:8332 BTC_RPC_USER=user BTC_RPC_PASS=pass cargo run --example multi_chain
+//! # also Bitcoin, from your own Bitcoin Core 25+ node:
+//! EVMIFY_RPC_BITCOIN=http://user:pass@127.0.0.1:8332 cargo run --example multi_chain
 //! ```
 
 use std::sync::Arc;
@@ -15,14 +15,11 @@ use evmify::{BlockId, ChainProvider, EvmClient, FallbackTransport, HttpTransport
 async fn main() -> evmify::Result<()> {
     let mut chains: Vec<Box<dyn ChainProvider>> = Vec::new();
 
-    // Any EVM chain: just a URL. The chain is identified via eth_chainId.
-    for url in [
-        "https://ethereum-rpc.publicnode.com",
-        "https://mainnet.base.org",
-    ] {
-        match EvmClient::connect(url).await {
+    // EVM chains by shorthand key (see `--example list_chains`), or by URL.
+    for key in ["ethereum", "base", "ronin"] {
+        match EvmClient::connect(key).await {
             Ok(c) => chains.push(Box::new(c)),
-            Err(e) => eprintln!("skip {url}: {e}"),
+            Err(e) => eprintln!("skip {key}: {e}"),
         }
     }
 
@@ -33,25 +30,17 @@ async fn main() -> evmify::Result<()> {
             "https://arbitrum-one-rpc.publicnode.com",
         )),
     ]);
-    match EvmClient::detect(arbitrum).await {
+    match EvmClient::detect_expecting(arbitrum, 42161).await {
         Ok(c) => chains.push(Box::new(c)),
         Err(e) => eprintln!("skip arbitrum: {e}"),
     }
 
     // Solana, served as EVM.
-    chains.push(Box::new(solana::pipeline(solana::SolanaAdapter::mainnet(
-        HttpTransport::new("https://api.mainnet-beta.solana.com"),
-    ))));
+    chains.push(Box::new(solana::connect("solana")?));
 
-    // Bitcoin, served as EVM (only if you have a node).
-    if let Ok(url) = std::env::var("BTC_RPC_URL") {
-        let mut t = HttpTransport::new(url);
-        if let Ok(user) = std::env::var("BTC_RPC_USER") {
-            t = t.basic_auth(user, std::env::var("BTC_RPC_PASS").ok());
-        }
-        chains.push(Box::new(bitcoin::pipeline(
-            bitcoin::BitcoinAdapter::mainnet(t),
-        )));
+    // Bitcoin, served as EVM (only when EVMIFY_RPC_BITCOIN points at your node).
+    if std::env::var("EVMIFY_RPC_BITCOIN").is_ok() {
+        chains.push(Box::new(bitcoin::connect("bitcoin")?));
     }
 
     for chain in &chains {

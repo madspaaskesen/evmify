@@ -1,13 +1,13 @@
 [package]
 name = "evmify"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.90"
 authors = ["Mads Paaskesen"]
 description = "EVM-ify any chain: a generic JSON-RPC client for EVM chains, plus a modular adapter -> normalizer -> transformer pipeline that serves non-EVM chains (Solana, Bitcoin, ...) as EVM blocks, transactions, receipts and logs."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-homepage = "https://github.com/madspaaskesen/evmify"
+homepage = "https://mp-it.dk/projects/evmify"
 documentation = "https://docs.rs/evmify"
 keywords = ["evm", "blockchain", "ethereum", "solana", "bitcoin"]
 categories = ["cryptography::cryptocurrencies", "api-bindings", "network-programming"]
@@ -16,19 +16,37 @@ repository = "https://github.com/madspaaskesen/evmify"
 [features]
 default = ["http"]
 ## HTTP JSON-RPC transport built on reqwest + rustls.
-http = ["dep:reqwest"]
+http = ["dep:reqwest", "dep:tokio"]
 
 [dependencies]
 alloy-primitives = { version = "1.7.3", features = ["serde"] }
 async-trait = "0.1.92"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"], optional = true }
+# Only for backoff sleeps in the HTTP transport; reqwest runs on tokio already.
+tokio = { version = "1.53.3", features = ["time"], optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 thiserror = "2.0.21"
 
 [dev-dependencies]
-tokio = { version = "1.53.3", features = ["rt", "rt-multi-thread", "macros"] }
+clap = { version = "4.6.7", features = ["derive"] }
+tokio = { version = "1.53.3", features = ["rt", "rt-multi-thread", "macros", "net", "io-util", "time"] }
 
 [[example]]
 name = "multi_chain"
+required-features = ["http"]
+
+[[example]]
+name = "address_info"
+required-features = ["http"]
+
+[[example]]
+name = "solana_tx"
+required-features = ["http"]
+
+[[example]]
+name = "list_chains"
+
+[[test]]
+name = "scan"
 required-features = ["http"]
