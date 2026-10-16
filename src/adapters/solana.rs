@@ -7,7 +7,9 @@
 //! * every SOL and SPL-token balance change becomes a `BalanceChange(address,int256)` log;
 //!   when a mint has exactly one sender and one receiver of equal amounts, an ERC-20
 //!   `Transfer(address,address,uint256)` log is emitted too, with the mint as log address
-//! * instructions, compute units and program logs are kept in `_native.extra`
+//! * instructions, compute units, program logs, the transaction version and (v1) the
+//!   `transactionConfig` compute budget are kept in `_native.extra`
+//! * legacy, v0 (address lookup tables) and v1 transactions are all supported
 
 use std::collections::BTreeMap;
 
@@ -58,6 +60,9 @@ pub struct SolanaTx {
     pub slot: Option<u64>,
     #[serde(default)]
     pub block_time: Option<i64>,
+    /// `"legacy"`, `0` or `1`.
+    #[serde(default)]
+    pub version: Option<Value>,
     pub transaction: SolanaTxBody,
     pub meta: Option<SolanaMeta>,
 }
@@ -74,6 +79,10 @@ pub struct SolanaMessage {
     pub account_keys: Vec<String>,
     #[serde(default)]
     pub instructions: Vec<SolanaInstruction>,
+    /// v1 transactions: compute budget and total priority fee, which replace the
+    /// ComputeBudget program instructions of legacy/v0 transactions.
+    #[serde(default)]
+    pub transaction_config: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -163,7 +172,14 @@ pub struct SolanaAdapter<T> {
     transport: T,
     chain: ChainInfo,
     pub commitment: Commitment,
+    /// Highest transaction version requested from the node. The node fails the whole
+    /// `getBlock` (error -32015) if a block holds a newer one, so keep this at the newest
+    /// version the normalizer understands. Default: 1.
+    pub max_transaction_version: u8,
 }
+
+/// Newest Solana transaction version this crate can normalize.
+pub const MAX_SUPPORTED_TRANSACTION_VERSION: u8 = 1;
 
 impl<T: Transport> SolanaAdapter<T> {
     pub fn new(transport: T, chain: ChainInfo) -> Self {
@@ -171,6 +187,7 @@ impl<T: Transport> SolanaAdapter<T> {
             transport,
             chain,
             commitment: Commitment::Confirmed,
+            max_transaction_version: MAX_SUPPORTED_TRANSACTION_VERSION,
         }
     }
 
@@ -209,7 +226,7 @@ impl<T: Transport> Adapter for SolanaAdapter<T> {
             "encoding": "json",
             "transactionDetails": "full",
             "rewards": true,
-            "maxSupportedTransactionVersion": 0,
+            "maxSupportedTransactionVersion": self.max_transaction_version,
             "commitment": self.commitment.as_str(),
         }]);
         let v = match self.transport.request("getBlock", params).await {
@@ -229,7 +246,7 @@ impl<T: Transport> Adapter for SolanaAdapter<T> {
     async fn transaction(&self, signature: &str) -> Result<Option<SolanaTx>> {
         let params = json!([signature, {
             "encoding": "json",
-            "maxSupportedTransactionVersion": 0,
+            "maxSupportedTransactionVersion": self.max_transaction_version,
             "commitment": self.commitment.as_str(),
         }]);
         let v = self.transport.request("getTransaction", params).await?;
@@ -258,6 +275,8 @@ impl SolanaNormalizer {
         index: Option<u64>,
     ) -> Result<NormalizedTx> {
         let body = raw.transaction;
+        let version = raw.version.clone();
+        let tx_config = body.message.transaction_config.clone();
         let id = body
             .signatures
             .first()
@@ -351,6 +370,10 @@ impl SolanaNormalizer {
 
         let slot = slot.or(raw.slot);
         extra["slot"] = json!(slot);
+        extra["version"] = version.unwrap_or(Value::Null);
+        if let Some(config) = tx_config {
+            extra["transactionConfig"] = config;
+        }
         Ok(NormalizedTx {
             id,
             block_height: slot,
